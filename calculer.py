@@ -1,18 +1,25 @@
 """
 Workflow VRTF complet en une commande :
     1. Lecture du classeur Excel (Furnace design, Combustion, Mesh)
-    2. Calcul combustion + Thermette
-    3. Écriture des résultats dans les feuilles Results et ResultsHEAT
+    2. (optionnel) Calcul des facteurs de forme via Modray → écriture dans la feuille Mesh
+    3. Calcul combustion + Thermette
+    4. Écriture des résultats dans les feuilles Results et ResultsHEAT
 
 Usage
 -----
     py calculer.py [--excel CHEMIN] [--thermette CHEMIN] [--out CHEMIN]
+                   [--modray1 CHEMIN] [--modray2 CHEMIN]
 
 Options
 -------
     --excel      Classeur source  (défaut : BLD VRTF 1.1_modifiable.xlsx dans ce dossier)
     --thermette  Exécutable       (défaut : C:\\thermette\\thermette.exe)
+    --modray1    Modray1.exe — si fourni avec --modray2, recalcule les facteurs de forme
+    --modray2    Modray2.exe
     --out        Classeur résultat (défaut : <nom>_résultats.xlsx à côté du source)
+
+Si --modray1 et --modray2 sont fournis, les nouveaux facteurs de forme sont écrits
+dans la feuille Mesh du classeur source (écrase les valeurs précédentes).
 """
 
 import argparse
@@ -32,6 +39,31 @@ from lire_excel import load_furnace_design, load_combustion, load_mesh
 _HERE = Path(__file__).parent
 _DEFAULT_EXCEL = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
 _DEFAULT_THERM = Path(r"C:\thermette\thermette.exe")
+
+
+# ---------------------------------------------------------------------------
+# Écriture de la feuille Mesh (facteurs de forme)
+# ---------------------------------------------------------------------------
+
+def _write_mesh_sheet(excel_path: Path, radex_lines: list[str]) -> None:
+    """
+    Écrit les lignes radex dans la feuille Mesh du classeur source.
+    Chaque ligne occupe une cellule en colonne A (ligne 1 = nombre total).
+    """
+    wb = openpyxl.load_workbook(excel_path)
+    ws = wb["Mesh"]
+
+    # Effacer l'ancien contenu
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.value = None
+
+    # Écrire les nouvelles lignes (colonne A)
+    for i, line in enumerate(radex_lines, start=1):
+        ws.cell(row=i, column=1).value = line
+
+    wb.save(excel_path)
+    wb.close()
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +185,8 @@ def _write_results_heat_sheet(ws, cfg, pp, comb_results):
 # Pipeline complet
 # ---------------------------------------------------------------------------
 
-def run(excel_path: Path, thermette_exe: Path, out_path: Path) -> None:
+def run(excel_path: Path, thermette_exe: Path, out_path: Path,
+        modray1_exe: Path | None = None, modray2_exe: Path | None = None) -> None:
 
     # 1. Lecture Excel
     print("=== Lecture Excel ===")
@@ -161,29 +194,49 @@ def run(excel_path: Path, thermette_exe: Path, out_path: Path) -> None:
     cfg = load_furnace_design(wb_src["Furnace design"])
     cfg["zones_combustion"] = load_combustion(wb_src["Combustion"])
     radex_lines = load_mesh(wb_src["Mesh"])
-    cfg["radex_lines"] = radex_lines
+    wb_src.close()
     print(f"  Acier  : {cfg['steel_grade']}")
     print(f"  Zones  : {cfg['n_zones']}  rangees/zone : {cfg['rows_per_zone']}")
     print(f"  Bande  : {cfg['strip_thickness_m']*1000:.2f} mm x {cfg['strip_width_m']} m")
     print(f"  Debit  : {cfg['strip_flowrate_kgs']:.2f} kg/s  ({cfg['strip_flowrate_kgs']*3.6:.1f} t/h)")
     print(f"  T_in   : {cfg['T_strip_in_K']-273:.0f} degC")
-    print(f"  Radex  : {len(radex_lines)} lignes")
+    print(f"  Radex  : {len(radex_lines)} lignes (feuille Mesh)")
 
-    # 2. Combustion
+    # 2. (optionnel) Calcul des facteurs de forme via Modray
+    if modray1_exe and modray2_exe and modray1_exe.exists() and modray2_exe.exists():
+        print("\n=== Facteurs de forme Modray ===")
+        print(f"  Modray1 : {modray1_exe}")
+        print(f"  Modray2 : {modray2_exe}")
+        workdir = excel_path.parent / "calcul"
+        workdir.mkdir(parents=True, exist_ok=True)
+        radex_lines = vrtf.generate_radex_lines(
+            workdir, cfg, modray1_exe, modray2_exe, timeout=600
+        )
+        n_echanges = len(radex_lines) - 1   # première ligne = compte
+        print(f"  {n_echanges} échanges calculés")
+        print(f"  Écriture dans la feuille Mesh de {excel_path.name}...")
+        _write_mesh_sheet(excel_path, radex_lines)
+        print(f"  Feuille Mesh mise à jour.")
+    elif modray1_exe or modray2_exe:
+        print("\n  AVERTISSEMENT : --modray1 et --modray2 doivent être fournis ensemble.")
+
+    cfg["radex_lines"] = radex_lines
+
+    # 3. Combustion
     print("\n=== Combustion ===")
     comb_results = vrtf.solve_combustion(cfg["zones_combustion"])
     for i, r in enumerate(comb_results, 1):
         print(f"  Zone {i} : P={r['power_W']/1e6:.2f} MW  gaz={r['fuel_Nm3h']:.1f} Nm3/h"
               f"  air={r['air_Nm3h']:.0f} Nm3/h")
 
-    # 3. Fichiers Thermette
+    # 4. Fichiers Thermette
     workdir = excel_path.parent / "calcul"
     workdir.mkdir(parents=True, exist_ok=True)
     print("\n=== Génération fichiers Thermette ===")
     vrtf.write_thermette_files(workdir, cfg, radex_lines=radex_lines)
     print(f"  -> {workdir}")
 
-    # 4. Solveur Thermette
+    # 5. Solveur Thermette
     print("\n=== Solveur Thermette ===")
     if not thermette_exe.exists():
         raise FileNotFoundError(f"Thermette introuvable : {thermette_exe}")
@@ -210,7 +263,7 @@ def run(excel_path: Path, thermette_exe: Path, out_path: Path) -> None:
     else:
         raise RuntimeError("VRTF_resu absent apres calcul Thermette.")
 
-    # 5. Post-traitement
+    # 6. Post-traitement
     print("\n=== Post-traitement ===")
     z0 = cfg["zones_combustion"][0]
     pp = vrtf.postprocess(
@@ -229,7 +282,7 @@ def run(excel_path: Path, thermette_exe: Path, out_path: Path) -> None:
     prod_th = cfg["strip_flowrate_kgs"] * 3.6
     print(f"  Conso specifique   : {burner_kW*3.6/prod_th:.1f} MJ/t")
 
-    # 6. Écriture Excel
+    # 7. Écriture Excel
     print("\n=== Écriture résultats Excel ===")
     wb_out = openpyxl.load_workbook(excel_path)   # avec formules pour conserver la mise en forme
     _write_results(wb_out, cfg, pp, comb_results)
@@ -250,12 +303,18 @@ def main():
                         help="Classeur source .xlsx")
     parser.add_argument("--thermette", default=str(_DEFAULT_THERM),
                         help="Exécutable Thermette.exe")
+    parser.add_argument("--modray1",   default=None,
+                        help="Modray1.exe — recalcule les facteurs de forme si fourni avec --modray2")
+    parser.add_argument("--modray2",   default=None,
+                        help="Modray2.exe")
     parser.add_argument("--out",       default=None,
                         help="Classeur résultat (défaut : <nom>_résultats.xlsx)")
     args = parser.parse_args()
 
     excel_path    = Path(args.excel)
     thermette_exe = Path(args.thermette)
+    modray1_exe   = Path(args.modray1) if args.modray1 else None
+    modray2_exe   = Path(args.modray2) if args.modray2 else None
     out_path      = (
         Path(args.out) if args.out
         else excel_path.parent / (excel_path.stem + "_résultats.xlsx")
@@ -265,7 +324,7 @@ def main():
         print(f"ERREUR : classeur introuvable : {excel_path}", file=sys.stderr)
         sys.exit(1)
 
-    run(excel_path, thermette_exe, out_path)
+    run(excel_path, thermette_exe, out_path, modray1_exe, modray2_exe)
 
 
 if __name__ == "__main__":
