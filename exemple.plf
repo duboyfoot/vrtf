@@ -1,0 +1,58 @@
+{
+  "steel_grade": "BISRA 01",
+  "strip_thickness_m": 0.005,
+  "strip_width_m": 1.2,
+  "strip_flowrate_kgs": 0.5,
+  "T_strip_in_K": 573.0,
+  "n_zones": 2,
+  "rows_per_zone": [2, 2],
+  "zone_height_m": 1.5,
+  "zone_width_m": 2.0,
+  "wall_thickness_m": 0.2,
+  "wall_conductivity": 1.2,
+  "gap_band_m": [0.05, 0.05],
+  "tubes": [
+    {
+      "zone": 1, "row": 1, "type": "U",
+      "a": 1.0, "b": 0.05, "c": 0.5, "d": 0.0,
+      "n_tubes": 4, "T_tube_K": 1200.0,
+      "prem_abs_m": 0.3, "dist_band_tube_m": 0.04,
+      "pitch_m": 0.25, "emissivity": 0.85, "tube_eff_pct": 80.0
+    },
+    {
+      "zone": 1, "row": 2, "type": "U",
+      "a": 1.0, "b": 0.05, "c": 0.5, "d": 0.0,
+      "n_tubes": 4, "T_tube_K": 1200.0,
+      "prem_abs_m": 0.3, "dist_band_tube_m": 0.04,
+      "pitch_m": 0.25, "emissivity": 0.85, "tube_eff_pct": 80.0
+    },
+    {
+      "zone": 2, "row": 1, "type": "W",
+      "a": 1.0, "b": 0.05, "c": 0.5, "d": 0.3,
+      "n_tubes": 4, "T_tube_K": 1100.0,
+      "prem_abs_m": 0.3, "dist_band_tube_m": 0.04,
+      "pitch_m": 0.25, "emissivity": 0.85, "tube_eff_pct": 80.0
+    },
+    {
+      "zone": 2, "row": 2, "type": "W",
+      "a": 1.0, "b": 0.05, "c": 0.5, "d": 0.3,
+      "n_tubes": 4, "T_tube_K": 1100.0,
+      "prem_abs_m": 0.3, "dist_band_tube_m": 0.04,
+      "pitch_m": 0.25, "emissivity": 0.85, "tube_eff_pct": 80.0
+    }
+  ],
+  "zones_combustion": [
+    {
+      "fuel": "Gaz naturel", "air": "Air_sec",
+      "excess_air_pct": 10.0, "power_W": 100000.0,
+      "T_fuel_K": 293.0, "T_air_K": 293.0,
+      "regen_air_eff_pct": 0.0, "regen_air_aspi_pct": 0.0
+    },
+    {
+      "fuel": "Gaz naturel", "air": "Air_sec",
+      "excess_air_pct": 10.0, "power_W": 150000.0,
+      "T_fuel_K": 293.0, "T_air_K": 293.0,
+      "regen_air_eff_pct": 0.0, "regen_air_aspi_pct": 0.0
+    }
+  ]
+}

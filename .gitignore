@@ -1,0 +1,19 @@
+# Claude Code
+.claude/
+
+# Fichiers générés par le calcul
+calcul/
+*_résultats.xlsx
+*.json
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Fichiers Thermette temporaires
+VRTF_reseau
+VRTF_calc
+VRTF_resu
+AcierCp
+AcierCo
+AcierRo
+fluides.prp

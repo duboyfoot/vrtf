@@ -1,0 +1,125 @@
+﻿,,,,,,,,,
+,,,,,,,,,
+,,,,,,,,,
+,,,,,,,,,
+,number of box,1,,,,nombre de caisson,1,,
+,"type of steel (1 = carbon, 2 = stainless steel)",1,,,,"1 = carbone, 2 = Inox",1,,
+,"type of blowing (1 = hole, 2 = slot)",1,,,,"trou = 1,    fente = 2",1,,
+,"with radiation (1 = yes, 0 = no)",1,,,,"avec rayonnement = 1, sinon =  0",1,,
+,hole automatic calculation,1,,,,calcul auto nombre de trous,1,,
+,speed line (ft/mn),0.3048,,,,Vitesse ligne (m/mn),1,,
+,width strip (Inch),25.4,,,,largeur bande (mm),1,,
+,thickness of the strip (Inch),25.4,,,,épaisseur bande (mm),1,,
+,,1,,,,,1,,
+,convection,1,,,,convection,1,,
+,(Z) hole/strip distance (Inch),25.4,,Inch,,distance buse bande (Z) (mm),1,,#VALUE!
+,(X) hole pitch  (Inch),25.4,,Inch,,maillage (X)  (mm),1,,#VALUE!
+,(D) hole diameter or slot witdh  (Inch),25.4,,Inch,,diametre des trous  (mm) ou  largeur des fentes,1,,#VALUE!
+,number of hole or slot calculated by face,1,,,,Nombre de trous/fente calculé/face,1,,number of hole or slot calculated by face
+,number of hole reserved hole by face,1,,,,Nombre de trous retenu/face,1,,number of hole reserved hole by face
+,blowing width  (Inch),25.4,,Inch,,largeur de soufflage  (mm),1,,#VALUE!
+,blowing lenght (Ft),304.79999999999995,,Ft,,longueur de soufflage  (mm),1,,#VALUE!
+,blowing speed (Ft/s),0.3048,,Ft/Sec,,vitesse de soufflage  (m/s),1,,#VALUE!
+,blowing temperature (Deg F),0.5555555555555556,32,Deg F,,température de soufflage (°C),1,,#VALUE!
+,H2 percentage (%),1,,%,,%H2,1,,H2 percentage (%)
+,,1,,,,,1,,
+,Rayonnement,1,,,,Rayonnement,1,,
+,strip emissivity,1,,,,émissivité bande,1,,
+,radiation furnace lenght  (Inch),25.4,,Inch,,largeur four (rayonnant) mm,1,,#VALUE!
+,radiation furnace height  (Inch),25.4,,Inch,,hauteur four (rayonnant) mm,1,,#VALUE!
+,external temperature (Deg F),0.5555555555555556,32,Deg F,,temperature externe,1,,#VALUE!
+,cooling rate (Deg F/s),0.5555555555555556,,Deg F/Sec,,pente °C/S,1,,#VALUE!
+,entry strip temperature (Deg F),0.5555555555555556,32,Deg F,,Température bande entrée (°C),1,,#VALUE!
+,exit strip temperature (Deg F),0.5555555555555556,32,Deg F,,température de sortie (°C),1,,#VALUE!
+,,1,,,,,1,,
+,,1,,,,,1,,
+,output (Lb/Hr),0.0004535970244035199,,Lb/Hr,,tonnage (T/h),1,,#VALUE!
+,N2H2 volumiq weigth (kg/m3),1,,,,masse volumique  mélange (Kg/m3),1,,
+,N2H2 heat specific,1,,,,chaleur spécifique mélange (,1,,
+,N2H2 thermal conductivity,1,,,,conductivité thermique mélange,1,,
+,N2H2 dynamic viscosity,1,,,,viscosité dynamique mélange,1,,
+,,1,,,,,1,,
+,convection coefficient  (W/m²/°C),1,,,,coefficient de convection  (W/m²/°C),1,,
+,,1,,,,,1,,
+,convection heat lost for the strip (BTUH),0.0002927400468384075,,BTUH,,chaleur perdue par la bande convection (Kw),1,,#VALUE!
+,radiation heat lost by the strip (BTUH),0.0002927400468384075,,BTUH,,chaleur perdue par la bande rayonnement (Kw),1,,#VALUE!
+,thermal lost by the strip (BTUH),0.0002927400468384075,,BTUH,,chaleur perdue par la bande pertes (Kw),1,,#VALUE!
+,,1,,,,,1,,
+,Total heat lost by the strip (BTUH),0.0002927400468384075,,BTUH,,chaleur perdue par la bande total (Kw),1,,#VALUE!
+,,1,,,,,1,,
+,number of blower per jet unit,1,,,,Nb/ventilateur/nappe,1,,number of blower per jet unit
+,unit blower flowrate (CFM),1.6990107955200002,,CFM,,debit gaz/ ventilateur m3/h,1,,#VALUE!
+,N2H2 heat exchanger entry temperature (Deg F),0.5555555555555556,32,Deg F,,Température retour gaz,1,,#VALUE!
+,volumic weight of suction N2H2,1,,,,masse volumique gaz retour,1,,
+,,1,,,,,1,,
+,,1,,,,,1,,
+,ducting pressure lost (Inch H2O),24.908890750302618,,,,perte charge circuit dapa,1,,
+,pressure lost coefficient at the hole,1,,,,coef perte charge trou,1,,
+,blower static pressure at ejection temperature (Inch H2O),24.908890750302618,,Inch H2O,,pression ventilateur dapa,1,,#VALUE!
+,blower efficiency,1,,,,rendement ventilateur,1,,
+,blower electrical power (HP),0.746,,HP,,puissance électrique/ventilateur kw,1,,#VALUE!
+,,1,,,,,1,,
+,optimal (X) (inch),25.4,,Inch,,,1,,#VALUE!
+,optimal (D) (inch),25.4,,Inch,,,1,,#VALUE!
+,optimal exchange coefficient,1,,,,,1,,
+,blower electrical power,1,,,,,1,,
+,entry water temperature (Deg F),0.5555555555555556,32,Deg F,,température entree eau,1,,#VALUE!
+,water flowrate (GPM),0.22712470704000004,,GPM,,debit eau,1,,#VALUE!
+,exit water temperature (Deg F),0.5555555555555556,32,Deg F,,température sortie eau,1,,#VALUE!
+,exchanger surface x exchange coefficient,1,,,,surface échangeur * coef échange,1,,
+,,1,,,,,,,
+,,1,,,,,,,
+,water delta temperature (dDeg F),0.5555555555555556,32,dDegF,,,,,#VALUE!
+,delta T eau moyen,1,,,,,,,
+,,,,,,,,,
+,,,,,,,,,
+Production characteristic,,,,,,,,,
+Output by meter,Lb/hr,,,,,T/h,,,
+Line speed,ft/mn,,,,,m/mn,,,
+Maximum strip width,Inch,,,,,mm,,,
+,,,,,,,,,
+,JET,,,,,JET,,,
+Blowing geometry,,,,,,,,,
+Strip/hole distance,Inch,,,,,mm,,,
+Step hole,Inch,,,,,mm,,,
+Hole diameter,Inch,,,,,mm,,,
+,,,,,,,,,
+Strip Temperature characteristic,,,,,,,,,
+Entry temperature,Deg F,,,,,°C,,,
+Exit temperature,Deg F,,,,,°C,,,
+Strip cooling rate,Deg F/s,,,,,°C/s,,,
+,,,,,,,,,
+Result,,,,,,,,,
+Total heat,BTUH,,,,,Kw,,,
+Hole Pressure,Inch H2O,,,,,daPa,,,
+Blowing speed,FT/s,,,,,m/s,,,
+Blowing lenght,FT,,,,,m,,,
+Heat exchange coefficient,W/m²/°C,,,,,W/m²/°C,,,
+,,,,,,,,,
+Duct characteristic,,,,,,,,,
+Vertical tube number,by face,,,,,by face,,,
+Horizontal blowing tube number,on width,,,,,on width,,,
+Horizontal blowing tube number,in total,,,,,in total,,,
+,,,,,,,,,
+Fan characteristic,,,,,,,,,
+Number of fan,,,,,,,,,
+Blowing flowrate,CFM,,,,,m3/h,,,
+Installed flowrate,CFM,,,,,m3/h,,,
+Security coefficient,%,,,,,%,,,
+Circuit pressure drop,Inch H2O,,,,,daPa,,,
+Total pressure,Inch H2O,,,,,daPa,,,
+Installed pressure,Inch H2O,,,,,daPa,,,
+,,,,,,,,,
+Motor characteristic,,,,,,,,,
+Efficiency (blower+motor),%,,,,,%,,,
+Altitude,ft,,,,,m,,,
+Coefficient altitude,,,,,,,,,
+Power consumption,Hp,,,,,kW,,,
+,,,,,,,,,
+Heat exchanger characteristic,,,,,,,,,
+Flowrate,CFM,,,,,M3/h,,,
+Gas temperature entry,Deg F,,,,,°C,,,
+Gas temperature exit,Deg F,,,,,°C,,,
+H2 content,Deg F,,,,,°C,,,
+Delta water temperature,Deg F,,,,,°C,,,
+Water flow,CFM,,,,,M3/h,,,
