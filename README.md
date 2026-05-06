@@ -11,9 +11,10 @@ py calculer.py
 ```
 
 1. Lit les paramètres depuis `BLD VRTF 1.1_modifiable.xlsx` (feuilles *Furnace design*, *Combustion*, *Mesh*)
-2. Calcule la combustion et génère les fichiers réseau thermique
-3. Lance le solveur **Thermette** (réseau thermique nodal)
-4. Écrit les résultats dans `BLD VRTF 1.1_modifiable_résultats.xlsx`
+2. *(optionnel)* Recalcule les facteurs de forme via **Modray** et met à jour la feuille *Mesh*
+3. Calcule la combustion et génère les fichiers réseau thermique
+4. Lance le solveur **Thermette** (réseau thermique nodal)
+5. Écrit les résultats dans `BLD VRTF 1.1_modifiable_résultats.xlsx`
 
 ## Structure
 
@@ -58,11 +59,24 @@ Python 3.10+ requis. Le solveur **Thermette.exe** (ARMINES/CES) doit être insta
 ## Options
 
 ```
-py calculer.py --excel   "chemin/vers/classeur.xlsx"
-               --thermette "C:\thermette\thermette.exe"
-               --out    "chemin/résultats.xlsx"
+py calculer.py [--excel      "chemin/vers/classeur.xlsx"]
+               [--thermette  "C:\thermette\thermette.exe"]
+               [--modray1    "C:\modray\Modray1.exe"]
+               [--modray2    "C:\modray\Modray2.exe"]
+               [--out        "chemin/résultats.xlsx"]
 ```
+
+| Option | Défaut | Description |
+|--------|--------|-------------|
+| `--excel` | `BLD VRTF 1.1_modifiable.xlsx` | Classeur source |
+| `--thermette` | `C:\thermette\thermette.exe` | Solveur réseau thermique |
+| `--modray1` | *(non fourni)* | Modray1.exe — calcul des facteurs de forme |
+| `--modray2` | *(non fourni)* | Modray2.exe — calcul des facteurs de forme |
+| `--out` | `<nom>_résultats.xlsx` | Classeur de sortie |
+
+Si `--modray1` et `--modray2` sont fournis, les facteurs de forme sont recalculés pour toutes les sections et la feuille **Mesh** du classeur source est mise à jour automatiquement.
 
 ```
 py run_vrtf.py projet.plf --thermette "C:\thermette\thermette.exe"
+               [--modray1 "C:\modray\Modray1.exe"] [--modray2 "C:\modray\Modray2.exe"]
 ```
