@@ -35,6 +35,7 @@ import openpyxl
 
 import vrtf
 from lire_excel import load_furnace_design, load_combustion, load_mesh
+from rapport import create_rapport
 
 _HERE = Path(__file__).parent
 _DEFAULT_EXCEL = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
@@ -286,6 +287,7 @@ def run(excel_path: Path, thermette_exe: Path, out_path: Path,
     print("\n=== Écriture résultats Excel ===")
     wb_out = openpyxl.load_workbook(excel_path)   # avec formules pour conserver la mise en forme
     _write_results(wb_out, cfg, pp, comb_results)
+    create_rapport(wb_out, cfg, pp, comb_results)
     wb_out.save(out_path)
     print(f"  -> {out_path}")
     print("\nTermine.")
