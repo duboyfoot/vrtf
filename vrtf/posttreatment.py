@@ -118,6 +118,18 @@ def postprocess(
 
     # ── Extraire valeurs Thermette par (section, rangée) ─────────────────────
     strip_temp_K = _extract_ij(raw, "SStrip_S")
+
+    # La dernière rangée de chaque zone n'a pas de branche bande dans Thermette
+    # (n-1 branches pour n rangées). On utilise le nœud inter-zones, qui est
+    # physiquement la température de bande à l'entrée de cette rangée.
+    n_zones       = cfg["n_zones"]
+    rows_per_zone = cfg["rows_per_zone"]
+    for i in range(1, n_zones + 1):
+        last_j = rows_per_zone[i - 1]
+        ij_last = (i, last_j)
+        ij_prev = (i, last_j - 1)
+        if last_j > 1 and ij_last not in strip_temp_K and ij_prev in strip_temp_K:
+            strip_temp_K[ij_last] = strip_temp_K[ij_prev]
     flux_mur_W   = _extract_ij(raw, "SFluxMur_S")
     flux_strip_W = _extract_ij(raw, "SFluxStrip_S")
 
