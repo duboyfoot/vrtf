@@ -287,7 +287,8 @@ def run(excel_path: Path, thermette_exe: Path, out_path: Path,
 
     # 7. Écriture Excel
     print("\n=== Écriture résultats Excel ===")
-    wb_out = openpyxl.load_workbook(excel_path)   # avec formules pour conserver la mise en forme
+    keep_vba = excel_path.suffix.lower() == ".xlsm"
+    wb_out = openpyxl.load_workbook(excel_path, keep_vba=keep_vba)
     _write_results(wb_out, cfg, pp, comb_results)
     create_rapport(wb_out, cfg, pp, comb_results)
     wb_out.save(out_path)
@@ -312,17 +313,14 @@ def main():
     parser.add_argument("--modray2",   default=None,
                         help="Modray2.exe")
     parser.add_argument("--out",       default=None,
-                        help="Classeur résultat (défaut : <nom>_résultats.xlsx)")
+                        help="Classeur résultat (défaut : même fichier que --excel)")
     args = parser.parse_args()
 
     excel_path    = Path(args.excel)
     thermette_exe = Path(args.thermette)
     modray1_exe   = Path(args.modray1) if args.modray1 else None
     modray2_exe   = Path(args.modray2) if args.modray2 else None
-    out_path      = (
-        Path(args.out) if args.out
-        else excel_path.parent / (excel_path.stem + "_résultats.xlsx")
-    )
+    out_path      = Path(args.out) if args.out else excel_path
 
     if not excel_path.exists():
         print(f"ERREUR : classeur introuvable : {excel_path}", file=sys.stderr)
