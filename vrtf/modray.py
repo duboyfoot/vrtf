@@ -3,8 +3,16 @@ Génération des fichiers d'entrée pour le solveur Modray1/Modray2.
 Remplace Module_modray.bas.
 """
 
+import ctypes
 from pathlib import Path
 import subprocess
+
+
+def _short_path(path: Path) -> str:
+    """Retourne le chemin court 8.3 (sans espaces) d'un répertoire."""
+    buf = ctypes.create_unicode_buffer(512)
+    ctypes.windll.kernel32.GetShortPathNameW(str(path), buf, 512)
+    return buf.value or str(path)
 
 _TOP_ZONES_DEFAULT = frozenset({2, 3, 6, 7, 10})
 
@@ -373,12 +381,16 @@ def run_modray_section(
     m1 = Path(modray1_exe)
     m2 = Path(modray2_exe)
 
+    # Chemin court 8.3 du répertoire de travail pour éviter les espaces
+    short_dir = _short_path(sec.parent)
+    sec_short  = str(Path(short_dir) / sec.name)
+
     subprocess.run(
-        [str(m1), str(sec), str(sec) + "_m1"],
+        [str(m1), sec_short, sec_short + "_m1"],
         cwd=str(m1.parent), check=True, timeout=timeout,
     )
     subprocess.run(
-        [str(m2), str(sec) + "_m1"],
+        [str(m2), sec_short + "_m1"],
         cwd=str(m2.parent), check=True, timeout=timeout,
     )
 
@@ -423,7 +435,8 @@ def generate_radex_lines(
             sec_file = out / "VRTF_S"
             write_modray_section(sec_file, cfg, i, j, top_zones)
             run_modray_section(sec_file, modray1_exe, modray2_exe, timeout)
-            radex = out / "Res_VRTF_R"
+            # Modray2 écrit Res_VRTF_R dans son propre répertoire
+            radex = Path(modray2_exe).parent / "Res_VRTF_R"
             if radex.exists():
                 all_lines.extend(read_radex_lines(radex))
 
