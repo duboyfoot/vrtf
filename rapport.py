@@ -216,22 +216,33 @@ def create_rapport(wb, cfg: dict, pp: dict, comb_results: list) -> None:
     # ══════════════════════════════════════════════════════════════════════════
     r = _section_header(ws, r, "PUISSANCE PAR ZONE RÉELLE")
 
-    cols_z = [2, 3, 4, 5, 6]
+    cols_z = [2, 3, 4, 5, 6, 7]
     hdrs_z = ["Zone réelle", "Flux tubes\n[kW]", "Pertes mur\n[kW]",
-              "Flux fumées\n[kW]", "Total absorbé\n[kW]"]
+              "Flux fumées\n[kW]", "Total absorbé\n[kW]", "T sortie bande\n[°C]"]
     r = _col_headers(ws, r, hdrs_z, cols_z)
+
+    # T sortie bande par zone réelle : max des températures des rangées de cette zone
+    rz_temps: dict[int, float] = {}
+    for t in cfg.get("tubes", []):
+        rz  = t.get("real_zone", t["zone"])
+        ij  = (t["zone"], t["row"])
+        t_k = pp["strip_temp_K"].get(ij)
+        if t_k is not None:
+            rz_temps[rz] = max(rz_temps.get(rz, 0.0), t_k)
 
     real_zones = sorted(pp["flux_tube_zone_W"].keys())
     for idx, zone in enumerate(real_zones):
         q_tube = pp["flux_tube_zone_W"].get(zone, 0.0)
         q_mur  = pp["flux_mur_zone_W"].get(zone, 0.0)
         q_fum  = pp["flux_fum_zone_W"].get(zone, 0.0)
+        t_out  = rz_temps.get(zone)
         vals = [
             (f"Zone {zone}", None),
             (round(q_tube / 1000, 1), "#,##0.0"),
             (round(q_mur  / 1000, 1), "#,##0.0"),
             (round(q_fum  / 1000, 1), "#,##0.0"),
             (round((q_tube + q_mur + q_fum) / 1000, 1), "#,##0.0"),
+            (round(t_out - 273.0, 1) if t_out else "—", "0.0"),
         ]
         r = _data_row(ws, r, vals, cols_z, alt=(idx % 2 == 1))
 
@@ -240,12 +251,14 @@ def create_rapport(wb, cfg: dict, pp: dict, comb_results: list) -> None:
     total_tube = pp["flux_tube_four_W"]
     total_mur  = pp["flux_mur_four_W"]
     total_fum  = pp["flux_fum_four_W"]
+    T_out_C    = round(T_out_K - 273.0, 1)
     total_z_vals = [
         ("TOTAL", None),
         (round(total_tube / 1000, 1), "#,##0.0"),
         (round(total_mur  / 1000, 1), "#,##0.0"),
         (round(total_fum  / 1000, 1), "#,##0.0"),
         (round((total_tube + total_mur + total_fum) / 1000, 1), "#,##0.0"),
+        (T_out_C, "0.0"),
     ]
     for col, val in zip(cols_z, total_z_vals):
         v, fmt = val
