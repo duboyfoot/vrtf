@@ -17,7 +17,9 @@ from pathlib import Path
 import win32com.client
 
 _HERE = Path(__file__).parent
-_DEFAULT_XLSX = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
+_XLSM = _HERE / "BLD VRTF 1.1_modifiable.xlsm"
+_XLSX = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
+_DEFAULT_XLSX = _XLSM if _XLSM.exists() else _XLSX
 
 # ---------------------------------------------------------------------------
 # Code VBA injecté dans le module de la feuille "Furnace design"
@@ -25,28 +27,112 @@ _DEFAULT_XLSX = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
 
 _VBA = """\
 Private Sub Worksheet_Change(ByVal Target As Range)
-    ' Ajuste le tableau tubes quand "Columns Nber." change pour une section.
-    ' Sections table : col M(13) = ID section, col N(14) = Columns Nber.
+    ' Col 13 (M en VBA) = colonne des valeurs "Nombre Sections" et "Columns Nber."
+    ' Col 12 (L en VBA) = labels : "Nombre Sections" OU ID section (1-20)
 
     If Target.Cells.Count > 1 Then Exit Sub
-    If Target.Column <> 14 Then Exit Sub   ' col N uniquement
-
-    ' Verifier que la cellule modifiee est bien dans la table sections
-    Dim secId As Variant
-    secId = Me.Cells(Target.Row, 13).Value
-    If Not IsNumeric(secId) Then Exit Sub
-    secId = CLng(secId)
-    If secId < 1 Or secId > 20 Then Exit Sub
-
-    Dim newNb As Variant
-    newNb = Target.Value
-    If Not IsNumeric(newNb) Then Exit Sub
-    newNb = CLng(newNb)
-    If newNb < 1 Or newNb > 20 Then Exit Sub
+    If Target.Column <> 13 Then Exit Sub
 
     Application.EnableEvents = False
     Application.ScreenUpdating = False
+    On Error GoTo Cleanup
 
+    Dim col12Val As Variant
+    col12Val = Me.Cells(Target.Row, 12).Value
+
+    ' Cas 1 : "Nombre Sections" -> col 12 contient le texte "Nombre"
+    If InStr(1, CStr(col12Val), "Nombre", vbTextCompare) > 0 Then
+        If IsNumeric(Target.Value) Then
+            Dim newN As Long
+            newN = CLng(Target.Value)
+            If newN >= 1 And newN <= 20 Then Call AjusterTableSections(newN)
+        End If
+        GoTo Cleanup
+    End If
+
+    ' Cas 2 : "Columns Nber." -> col 12 contient un ID section numerique 1-20
+    If Not IsNumeric(col12Val) Then GoTo Cleanup
+    Dim secId As Long
+    secId = CLng(col12Val)
+    If secId < 1 Or secId > 20 Then GoTo Cleanup
+
+    Dim newNb As Variant
+    newNb = Target.Value
+    If Not IsNumeric(newNb) Then GoTo Cleanup
+    newNb = CLng(newNb)
+    If newNb < 1 Or newNb > 20 Then GoTo Cleanup
+
+    Call AjusterLignesTubes(secId, newNb)
+
+Cleanup:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+End Sub
+
+
+Private Sub AjusterTableSections(newN As Long)
+    ' Determine le nb de sections actives = max ID section dans le tableau tubes
+    Dim headerRow As Long
+    Dim r As Long
+    headerRow = 0
+    For r = 1 To Me.UsedRange.Row + Me.UsedRange.Rows.Count - 1
+        If CStr(Me.Cells(r, 1).Value) = "Reelle zone" Then
+            headerRow = r
+            Exit For
+        End If
+    Next r
+    If headerRow = 0 Then Exit Sub
+
+    Dim currentN As Long
+    currentN = 0
+    For r = headerRow + 1 To headerRow + 300
+        Dim vb As Variant
+        vb = Me.Cells(r, 2).Value
+        If vb = "" Or IsEmpty(vb) Then Exit For
+        If Not IsNumeric(vb) Then Exit For
+        If CLng(vb) > currentN Then currentN = CLng(vb)
+    Next r
+
+    If newN = currentN Then Exit Sub
+
+    If newN > currentN Then
+        ' Ajouter les sections manquantes en lisant Columns Nber depuis la table sections
+        Dim i As Long
+        For i = currentN + 1 To newN
+            Call AjusterLignesTubes(i, GetColumnsNber(i))
+        Next i
+    Else
+        ' Supprimer les sections en trop
+        Dim j As Long
+        For j = currentN To newN + 1 Step -1
+            Call AjusterLignesTubes(j, 0)
+        Next j
+    End If
+End Sub
+
+
+Private Function GetColumnsNber(secId As Long) As Long
+    ' Lit Columns Nber dans la table sections (col L=12, col M=13)
+    Dim r As Long
+    For r = 1 To Me.UsedRange.Row + Me.UsedRange.Rows.Count - 1
+        Dim mv As Variant
+        mv = Me.Cells(r, 12).Value
+        If IsNumeric(mv) And Not IsEmpty(mv) Then
+            If CLng(mv) = secId Then
+                Dim nv As Variant
+                nv = Me.Cells(r, 13).Value
+                If IsNumeric(nv) And Not IsEmpty(nv) Then
+                    GetColumnsNber = CLng(nv)
+                    Exit Function
+                End If
+            End If
+        End If
+    Next r
+    GetColumnsNber = 4  ' valeur par defaut
+End Function
+
+
+Private Sub AjusterLignesTubes(secId As Long, newNb As Long)
     ' Trouver la ligne d'en-tete "Reelle zone" en col A
     Dim headerRow As Long
     Dim r As Long
@@ -57,7 +143,7 @@ Private Sub Worksheet_Change(ByVal Target As Range)
             Exit For
         End If
     Next r
-    If headerRow = 0 Then GoTo Cleanup
+    If headerRow = 0 Then Exit Sub
 
     ' Trouver la derniere ligne du tableau tubes
     Dim tableEnd As Long
@@ -89,13 +175,11 @@ Private Sub Worksheet_Change(ByVal Target As Range)
     currentNb = 0
     If firstRow > 0 Then currentNb = lastRow - firstRow + 1
 
-    If newNb = currentNb Then GoTo Cleanup
+    If newNb = currentNb Then Exit Sub
 
     If newNb > currentNb Then
-        ' --- Ajouter des lignes apres lastRow ---
         Dim insertAt As Long
         If lastRow = 0 Then
-            ' Pas encore de lignes : inserer apres la section precedente
             insertAt = headerRow
             Dim s As Long
             For s = secId - 1 To 1 Step -1
@@ -117,24 +201,18 @@ Private Sub Worksheet_Change(ByVal Target As Range)
             Me.Rows(insertAt + 1).PasteSpecial xlPasteFormats
             Application.CutCopyMode = False
             Me.Rows(insertAt + 1).ClearContents
-            Me.Cells(insertAt + 1, 1).Value = secId           ' Reelle zone
-            Me.Cells(insertAt + 1, 2).Value = secId           ' Section
-            Me.Cells(insertAt + 1, 3).Value = currentNb + i   ' Rangee
+            Me.Cells(insertAt + 1, 1).Value = secId
+            Me.Cells(insertAt + 1, 2).Value = secId
+            Me.Cells(insertAt + 1, 3).Value = currentNb + i
             insertAt = insertAt + 1
         Next i
-
     Else
-        ' --- Supprimer les dernieres lignes de cette section ---
         Dim j As Long
         For j = 1 To currentNb - newNb
             Me.Rows(lastRow).Delete Shift:=xlUp
             lastRow = lastRow - 1
         Next j
     End If
-
-Cleanup:
-    Application.EnableEvents = True
-    Application.ScreenUpdating = True
 End Sub
 """
 
