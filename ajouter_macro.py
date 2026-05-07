@@ -27,21 +27,19 @@ _DEFAULT_XLSX = _XLSM if _XLSM.exists() else _XLSX
 
 _VBA = """\
 Private Sub Worksheet_Change(ByVal Target As Range)
-    ' Col 13 (M en VBA) = colonne des valeurs "Nombre Sections" et "Columns Nber."
-    ' Col 12 (L en VBA) = labels : "Nombre Sections" OU ID section (1-20)
+    ' Col 14 (N) = valeurs editables : "Nombre Sections" et "Columns Nber."
+    ' Col 12 (L) = label "Nombre Sections"
+    ' Col 13 (M) = ID section (1-20) pour les lignes de la table sections
 
     If Target.Cells.Count > 1 Then Exit Sub
-    If Target.Column <> 13 Then Exit Sub
+    If Target.Column <> 14 Then Exit Sub
 
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     On Error GoTo Cleanup
 
-    Dim col12Val As Variant
-    col12Val = Me.Cells(Target.Row, 12).Value
-
     ' Cas 1 : "Nombre Sections" -> col 12 contient le texte "Nombre"
-    If InStr(1, CStr(col12Val), "Nombre", vbTextCompare) > 0 Then
+    If InStr(1, CStr(Me.Cells(Target.Row, 12).Value), "Nombre", vbTextCompare) > 0 Then
         If IsNumeric(Target.Value) Then
             Dim newN As Long
             newN = CLng(Target.Value)
@@ -50,16 +48,17 @@ Private Sub Worksheet_Change(ByVal Target As Range)
         GoTo Cleanup
     End If
 
-    ' Cas 2 : "Columns Nber." -> col 12 contient un ID section numerique 1-20
-    If Not IsNumeric(col12Val) Then GoTo Cleanup
+    ' Cas 2 : "Columns Nber." -> col 13 contient un ID section numerique 1-20
+    Dim col13Val As Variant
+    col13Val = Me.Cells(Target.Row, 13).Value
+    If Not IsNumeric(col13Val) Then GoTo Cleanup
     Dim secId As Long
-    secId = CLng(col12Val)
+    secId = CLng(col13Val)
     If secId < 1 Or secId > 20 Then GoTo Cleanup
 
-    Dim newNb As Variant
-    newNb = Target.Value
-    If Not IsNumeric(newNb) Then GoTo Cleanup
-    newNb = CLng(newNb)
+    If Not IsNumeric(Target.Value) Then GoTo Cleanup
+    Dim newNb As Long
+    newNb = CLng(Target.Value)
     If newNb < 1 Or newNb > 20 Then GoTo Cleanup
 
     Call AjusterLignesTubes(secId, newNb)
@@ -99,7 +98,9 @@ Private Sub AjusterTableSections(newN As Long)
         ' Ajouter les sections manquantes en lisant Columns Nber depuis la table sections
         Dim i As Long
         For i = currentN + 1 To newN
-            Call AjusterLignesTubes(i, GetColumnsNber(i))
+            Dim nb As Long
+            nb = GetColumnsNber(i)
+            Call AjusterLignesTubes(i, nb)
         Next i
     Else
         ' Supprimer les sections en trop
@@ -112,15 +113,15 @@ End Sub
 
 
 Private Function GetColumnsNber(secId As Long) As Long
-    ' Lit Columns Nber dans la table sections (col L=12, col M=13)
+    ' Lit Columns Nber dans la table sections (col M=13, col N=14)
     Dim r As Long
     For r = 1 To Me.UsedRange.Row + Me.UsedRange.Rows.Count - 1
         Dim mv As Variant
-        mv = Me.Cells(r, 12).Value
+        mv = Me.Cells(r, 13).Value
         If IsNumeric(mv) And Not IsEmpty(mv) Then
             If CLng(mv) = secId Then
                 Dim nv As Variant
-                nv = Me.Cells(r, 13).Value
+                nv = Me.Cells(r, 14).Value
                 If IsNumeric(nv) And Not IsEmpty(nv) Then
                     GetColumnsNber = CLng(nv)
                     Exit Function
@@ -241,10 +242,8 @@ def main():
         wb = excel.Workbooks.Open(str(src))
         ws = wb.Worksheets("Furnace design")
 
-        # Trouver le module VBA correspondant à cette feuille :
-        # VBComponents : index 1 = ThisWorkbook, index N+1 = feuille N
-        fd_idx = ws.Index
-        vbc = wb.VBProject.VBComponents.Item(fd_idx + 1)
+        # Utiliser le CodeName de la feuille pour trouver son module VBA
+        vbc = wb.VBProject.VBComponents(ws.CodeName)
         module = vbc.CodeModule
         print(f"  Module VBA : {vbc.Name} -> '{ws.Name}'")
 
