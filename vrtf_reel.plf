@@ -10,7 +10,7 @@
   "strip_flowrate_kgs": 27.3056,
   "T_strip_in_K": 293.0,
   "rows_per_zone": [
-    4,
+    6,
     4,
     4,
     4
