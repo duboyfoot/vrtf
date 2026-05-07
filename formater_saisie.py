@@ -50,7 +50,7 @@ def _fmt(cell, *, bold=False, italic=False, size=10, color="000000",
 
 
 def _label(cell):
-    _fmt(cell, bold=True, size=10, color=_WHITE, bg=_MED_BLUE, border=True)
+    _fmt(cell, bold=True, size=10, color=_DARK_BLUE, bg=_LIGHT_BLUE, border=True)
 
 
 def _input(cell):
