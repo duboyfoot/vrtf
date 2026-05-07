@@ -38,7 +38,9 @@ from lire_excel import load_furnace_design, load_combustion, load_mesh
 from rapport import create_rapport
 
 _HERE = Path(__file__).parent
-_DEFAULT_EXCEL = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
+_EXCEL_XLSM    = _HERE / "BLD VRTF 1.1_modifiable.xlsm"
+_EXCEL_XLSX    = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
+_DEFAULT_EXCEL = _EXCEL_XLSM if _EXCEL_XLSM.exists() else _EXCEL_XLSX
 _DEFAULT_THERM = Path(r"C:\thermette\thermette.exe")
 
 
@@ -51,7 +53,7 @@ def _write_mesh_sheet(excel_path: Path, radex_lines: list[str]) -> None:
     Écrit les lignes radex dans la feuille Mesh du classeur source.
     Chaque ligne occupe une cellule en colonne A (ligne 1 = nombre total).
     """
-    wb = openpyxl.load_workbook(excel_path)
+    wb = openpyxl.load_workbook(excel_path, keep_vba=True)
     ws = wb["Mesh"]
 
     # Effacer l'ancien contenu

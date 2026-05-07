@@ -11,7 +11,9 @@ import json
 from pathlib import Path
 import openpyxl
 
-SOURCE = Path(r"C:\Users\patrick pro\Documents\kappa-dubois\developpement\BLD VRTF 1.1_modifiable.xlsx")
+_XLSM = Path(r"C:\Users\patrick pro\Documents\kappa-dubois\developpement\BLD VRTF 1.1_modifiable.xlsm")
+_XLSX = Path(r"C:\Users\patrick pro\Documents\kappa-dubois\developpement\BLD VRTF 1.1_modifiable.xlsx")
+SOURCE = _XLSM if _XLSM.exists() else _XLSX
 OUT_PLF = SOURCE.parent / "vrtf_reel.plf"
 
 

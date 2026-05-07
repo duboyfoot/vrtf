@@ -13,7 +13,9 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
 _HERE = Path(__file__).parent
-_DEFAULT_EXCEL = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
+_EXCEL_XLSM    = _HERE / "BLD VRTF 1.1_modifiable.xlsm"
+_EXCEL_XLSX    = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
+_DEFAULT_EXCEL = _EXCEL_XLSM if _EXCEL_XLSM.exists() else _EXCEL_XLSX
 
 # Palette identique à rapport.py
 _DARK_BLUE  = "1F3864"
@@ -192,7 +194,7 @@ def main():
         return
 
     print(f"Ouverture : {excel_path.name}")
-    wb = openpyxl.load_workbook(excel_path)
+    wb = openpyxl.load_workbook(excel_path, keep_vba=excel_path.suffix == ".xlsm")
 
     if "Furnace design" in wb.sheetnames:
         print("  Mise en forme : Furnace design...")
