@@ -212,6 +212,50 @@ def create_rapport(wb, cfg: dict, pp: dict, comb_results: list) -> None:
     r += 1
 
     # ══════════════════════════════════════════════════════════════════════════
+    # PUISSANCE PAR ZONE RÉELLE
+    # ══════════════════════════════════════════════════════════════════════════
+    r = _section_header(ws, r, "PUISSANCE PAR ZONE RÉELLE")
+
+    cols_z = [2, 3, 4, 5, 6]
+    hdrs_z = ["Zone réelle", "Flux tubes\n[kW]", "Pertes mur\n[kW]",
+              "Flux fumées\n[kW]", "Total absorbé\n[kW]"]
+    r = _col_headers(ws, r, hdrs_z, cols_z)
+
+    real_zones = sorted(pp["flux_tube_zone_W"].keys())
+    for idx, zone in enumerate(real_zones):
+        q_tube = pp["flux_tube_zone_W"].get(zone, 0.0)
+        q_mur  = pp["flux_mur_zone_W"].get(zone, 0.0)
+        q_fum  = pp["flux_fum_zone_W"].get(zone, 0.0)
+        vals = [
+            (f"Zone {zone}", None),
+            (round(q_tube / 1000, 1), "#,##0.0"),
+            (round(q_mur  / 1000, 1), "#,##0.0"),
+            (round(q_fum  / 1000, 1), "#,##0.0"),
+            (round((q_tube + q_mur + q_fum) / 1000, 1), "#,##0.0"),
+        ]
+        r = _data_row(ws, r, vals, cols_z, alt=(idx % 2 == 1))
+
+    # Ligne totaux
+    ws.row_dimensions[r].height = 18
+    total_tube = pp["flux_tube_four_W"]
+    total_mur  = pp["flux_mur_four_W"]
+    total_fum  = pp["flux_fum_four_W"]
+    total_z_vals = [
+        ("TOTAL", None),
+        (round(total_tube / 1000, 1), "#,##0.0"),
+        (round(total_mur  / 1000, 1), "#,##0.0"),
+        (round(total_fum  / 1000, 1), "#,##0.0"),
+        (round((total_tube + total_mur + total_fum) / 1000, 1), "#,##0.0"),
+    ]
+    for col, val in zip(cols_z, total_z_vals):
+        v, fmt = val
+        _cell(ws, r, col, v,
+              bold=True, size=10, bg=_LIGHT_BLUE,
+              align=("right" if isinstance(v, (int, float)) else "center"),
+              border=True, fmt=fmt)
+    r += 2
+
+    # ══════════════════════════════════════════════════════════════════════════
     # RÉSULTATS PAR RANGÉE DE TUBES
     # ══════════════════════════════════════════════════════════════════════════
     r = _section_header(ws, r, "RÉSULTATS PAR RANGÉE DE TUBES")
