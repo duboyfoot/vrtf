@@ -34,14 +34,24 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 import openpyxl
 
 import vrtf
-from lire_excel import load_furnace_design, load_combustion, load_mesh
+from lire_excel import load_furnace_design, load_combustion, load_mesh, load_files
 from rapport import create_rapport
 
 _HERE = Path(__file__).parent
 _EXCEL_XLSM    = _HERE / "BLD VRTF 1.1_modifiable.xlsm"
 _EXCEL_XLSX    = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
 _DEFAULT_EXCEL = _EXCEL_XLSM if _EXCEL_XLSM.exists() else _EXCEL_XLSX
-_DEFAULT_THERM = Path(r"C:\thermette\thermette.exe")
+
+
+def _read_file_paths(excel_path: Path) -> dict:
+    """Lit les chemins Thermette/Modray depuis la feuille Files du classeur."""
+    try:
+        wb = openpyxl.load_workbook(excel_path, data_only=True, read_only=True)
+        paths = load_files(wb["Files"]) if "Files" in wb.sheetnames else {}
+        wb.close()
+        return paths
+    except Exception:
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -306,25 +316,41 @@ def main():
     )
     parser.add_argument("--excel",     default=str(_DEFAULT_EXCEL),
                         help="Classeur source .xlsx")
-    parser.add_argument("--thermette", default=str(_DEFAULT_THERM),
-                        help="Exécutable Thermette.exe")
+    parser.add_argument("--thermette", default=None,
+                        help="Exécutable Thermette.exe (défaut : feuille Files)")
     parser.add_argument("--modray1",   default=None,
-                        help="Modray1.exe — recalcule les facteurs de forme si fourni avec --modray2")
+                        help="Modray1.exe (défaut : feuille Files)")
     parser.add_argument("--modray2",   default=None,
-                        help="Modray2.exe")
+                        help="Modray2.exe (défaut : feuille Files)")
+    parser.add_argument("--modray",    action="store_true",
+                        help="Recalculer les facteurs de forme via Modray (chemins depuis feuille Files)")
     parser.add_argument("--out",       default=None,
                         help="Classeur résultat (défaut : même fichier que --excel)")
     args = parser.parse_args()
 
-    excel_path    = Path(args.excel)
-    thermette_exe = Path(args.thermette)
-    modray1_exe   = Path(args.modray1) if args.modray1 else None
-    modray2_exe   = Path(args.modray2) if args.modray2 else None
-    out_path      = Path(args.out) if args.out else excel_path
-
+    excel_path = Path(args.excel)
     if not excel_path.exists():
         print(f"ERREUR : classeur introuvable : {excel_path}", file=sys.stderr)
         sys.exit(1)
+
+    # Lire les chemins depuis la feuille Files
+    file_paths = _read_file_paths(excel_path)
+    therm_dir  = file_paths.get("thermette_dir", Path(r"C:\thermette"))
+    modray_dir = file_paths.get("modray_dir")
+
+    thermette_exe = Path(args.thermette) if args.thermette else therm_dir / "thermette.exe"
+
+    if args.modray1 and args.modray2:
+        modray1_exe = Path(args.modray1)
+        modray2_exe = Path(args.modray2)
+    elif args.modray and modray_dir:
+        modray1_exe = modray_dir / "modray1.exe"
+        modray2_exe = modray_dir / "modray2.exe"
+    else:
+        modray1_exe = None
+        modray2_exe = None
+
+    out_path = Path(args.out) if args.out else excel_path
 
     run(excel_path, thermette_exe, out_path, modray1_exe, modray2_exe)
 

@@ -187,6 +187,21 @@ def load_mesh(ws):
     return lines
 
 
+def load_files(ws) -> dict:
+    """
+    Lit les chemins Thermette et Modray depuis la feuille Files.
+    Retourne {"thermette_dir": Path, "modray_dir": Path}.
+    """
+    col_c = [row[2] for row in ws.iter_rows(values_only=True)]
+    result = {}
+    for i, val in enumerate(col_c):
+        if val == "Thermette directory :" and i + 1 < len(col_c) and col_c[i + 1]:
+            result["thermette_dir"] = Path(col_c[i + 1])
+        elif val == "Modray directory :" and i + 1 < len(col_c) and col_c[i + 1]:
+            result["modray_dir"] = Path(col_c[i + 1])
+    return result
+
+
 def main():
     print(f"Lecture : {SOURCE.name}")
     wb = openpyxl.load_workbook(SOURCE, data_only=True)
