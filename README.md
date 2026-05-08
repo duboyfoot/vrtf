@@ -22,17 +22,27 @@ py calculer.py
 calculer.py          Script principal (lecture Excel → calcul → résultats Excel)
 lire_excel.py        Extraction des données depuis le classeur
 run_vrtf.py          Pipeline alternatif via fichier projet .plf (JSON)
-vrtf/                Package Python — moteur de calcul
-  combustion.py      Calcul stœchiométrique et enthalpique
+pyproject.toml       Packaging pip (kappa-combustion)
+
+combustion/          Package autonome — calculs de combustion
+  core.py            Stœchiométrie, fumées, T adiabatique, débits
+  thermo.py          Propriétés thermophysiques des mélanges gazeux
+  database.py        Base de données combustibles, comburants, gaz
+  math_utils.py      Bisection, interpolation, polynômes
+  data/              CSV : basdo_gaz, Fuels, Comburants
+
+vrtf/                Package Python — moteur de calcul VRTF
+  combustion.py      Délègue à combustion/
+  thermo.py          Gaz → combustion/ ; acier BISRA local
+  database.py        Gaz → combustion/ ; BISRA local
   posttreatment.py   Post-traitement des résultats Thermette
-  fichiers.py        Génération des fichiers réseau Thermette
-  thermo.py          Propriétés thermophysiques des gaz
-  database.py        Base de données combustibles et aciers
+  thermette.py       Génération des fichiers réseau Thermette
   hottel.py          Facteurs d'échange radiatif (méthode Hottel)
   solver.py          Solveur itératif
   modray.py          Interface avec Modray (échanges radiatifs)
   ...
-data/                Base de données (CSV) : aciers, combustibles, gaz
+
+data/                CSV aciers BISRA (Cp, conductivité, émissivité, enthalpie)
 exemple.plf          Fichier projet exemple (2 zones × 2 rangées)
 vrtf_reel.plf        Fichier projet réel extrait de l'Excel
 ```
@@ -47,6 +57,70 @@ vrtf_reel.plf        Fichier projet réel extrait de l'Excel
 | Results | K39:Q54 | Tableau détaillé par section |
 | ResultsHEAT | E26–E30 | Efficacité et consommation spécifique |
 | ResultsHEAT | E36–J38 | Bilan thermique global |
+
+## Package combustion
+
+Les calculs de combustion sont disponibles comme bibliothèque autonome,
+utilisable dans tout projet Python indépendamment de VRTF.
+
+### Installation
+
+```
+pip install -e "C:\...\developpement"
+```
+
+### Exemple d'utilisation
+
+```python
+import combustion
+
+# --- Combustibles et comburants disponibles ---
+print(combustion.fuel_names())       # ['Gaz_naturel', 'BFG_Sidmar', ...]
+print(combustion.comburant_names())  # ['Air_sec', 'Air_humide', ...]
+
+# --- Stœchiométrie ---
+fuel = "Gaz_naturel"
+va  = combustion.stoich_air_vol(fuel)              # Nm³_air / Nm³_fuel
+print(f"Va = {va:.2f} Nm³_air/Nm³_fuel")          # Va = 9.96 Nm³_air/Nm³_fuel
+
+# --- PCI ---
+pci = combustion.lhv_vol(fuel)
+print(f"PCI = {pci/1e6:.2f} MJ/Nm³")              # PCI = 37.18 MJ/Nm³
+
+# --- Débits à partir de la puissance ---
+flows = combustion.flow_fuel(power_W=10e6, fuel=fuel, air_fuel_ratio=1.1)
+print(f"Gaz  = {flows['fuel_Nm3h']:.1f} Nm³/h")
+print(f"Air  = {flows['air_Nm3h']:.0f} Nm³/h")
+print(f"Fumées = {flows['flue_kgs']:.2f} kg/s")
+
+# --- Composition des fumées ---
+compo = combustion.waste_gas_composition(fuel, air_fuel_ratio=1.1)
+print(f"CO2={compo['CO2']:.1f}%  H2O={compo['H2O']:.1f}%  O2={compo['O2']:.1f}%")
+
+# --- Température adiabatique ---
+Tad = combustion.adiabatic_temperature(fuel, air_fuel_ratio=1.1)
+print(f"T adiabatique = {Tad - 273:.0f} °C")      # T adiabatique = 1952 °C
+
+# --- Enthalpie des fumées ---
+flue_c = combustion.flue_gas_composition(fuel, air_fuel_ratio=1.1)
+h = combustion.mixture_enthalpy_vol(flue_c, T_K=1200 + 273)
+print(f"H fumées à 1200°C = {h/1e6:.3f} MJ/Nm³")
+
+# --- Indice de Wobbe ---
+w = combustion.wobbe_index(fuel)
+print(f"Wobbe = {w/1e6:.2f} MJ/Nm³")
+```
+
+### Modules
+
+| Module | Contenu |
+|--------|---------|
+| `combustion.core` | Stœchiométrie, volume fumées, composition fumées, débits, T adiabatique |
+| `combustion.thermo` | Cp, enthalpie, densité des mélanges gazeux, PCI, échangeur |
+| `combustion.database` | Combustibles, comburants, propriétés des gaz élémentaires |
+| `combustion.math_utils` | Bisection, interpolation, polynômes Cp |
+
+---
 
 ## Dépendances
 
