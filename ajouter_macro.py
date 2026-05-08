@@ -1,13 +1,14 @@
 """
-Injecte la macro Worksheet_Change dans la feuille Furnace design
-et convertit le classeur en .xlsm (nécessaire pour les macros VBA).
+Injecte les macros VBA dans le classeur VRTF :
+  - Feuille "Furnace design" : Worksheet_Change (ajustement tableau sections/tubes)
+  - Module standard "ModVRTF" : LancerThermette / LancerModrayThermette
+  - Feuille "Solver" : deux boutons liés à ces macros
 
 Usage
 -----
     py ajouter_macro.py [--excel CHEMIN_XLSX]
 
 Le fichier .xlsm est créé à côté du fichier source.
-Le fichier .xlsx original est conservé comme sauvegarde.
 """
 
 import argparse
@@ -20,6 +21,56 @@ _HERE = Path(__file__).parent
 _XLSM = _HERE / "BLD VRTF 1.1_modifiable.xlsm"
 _XLSX = _HERE / "BLD VRTF 1.1_modifiable.xlsx"
 _DEFAULT_XLSX = _XLSM if _XLSM.exists() else _XLSX
+
+# ---------------------------------------------------------------------------
+# Module standard ModVRTF : boutons Solver → calculer.py
+# ---------------------------------------------------------------------------
+
+_VBA_CALCUL = """\
+Option Explicit
+
+Private Sub RunCalcul(useModray As Boolean)
+    Dim xlsmPath As String
+    Dim outPath As String
+    Dim scriptPath As String
+    Dim cmd As String
+    Dim wsh As Object
+    Dim ret As Long
+
+    xlsmPath = ThisWorkbook.FullName
+    scriptPath = ThisWorkbook.Path & "\\calculer.py"
+    outPath = Left(xlsmPath, InStrRev(xlsmPath, ".") - 1) & "_résultats.xlsm"
+
+    ThisWorkbook.Save
+
+    Dim q As String
+    q = Chr(34)
+    cmd = "py " & q & scriptPath & q & " --excel " & q & xlsmPath & q & " --out " & q & outPath & q
+    If useModray Then cmd = cmd & " --modray"
+
+    Application.StatusBar = IIf(useModray, "Modray + Thermette en cours...", "Thermette en cours...")
+
+    Set wsh = CreateObject("WScript.Shell")
+    ret = wsh.Run("cmd /c " & cmd, 1, True)
+
+    Application.StatusBar = False
+
+    If ret = 0 Then
+        If Dir(outPath) <> "" Then Workbooks.Open outPath
+        MsgBox "Calcul terminé avec succès.", vbInformation, "VRTF"
+    Else
+        MsgBox "Erreur lors du calcul (code " & ret & ").", vbCritical, "VRTF"
+    End If
+End Sub
+
+Sub LancerThermette()
+    Call RunCalcul(False)
+End Sub
+
+Sub LancerModrayThermette()
+    Call RunCalcul(True)
+End Sub
+"""
 
 # ---------------------------------------------------------------------------
 # Code VBA injecté dans le module de la feuille "Furnace design"
@@ -240,22 +291,69 @@ def main():
 
     try:
         wb = excel.Workbooks.Open(str(src))
-        ws = wb.Worksheets("Furnace design")
 
-        # Utiliser le CodeName de la feuille pour trouver son module VBA
-        vbc = wb.VBProject.VBComponents(ws.CodeName)
-        module = vbc.CodeModule
-        print(f"  Module VBA : {vbc.Name} -> '{ws.Name}'")
+        # ── 1. Feuille "Furnace design" : Worksheet_Change ────────────────────
+        ws_fd = wb.Worksheets("Furnace design")
+        vbc_fd = wb.VBProject.VBComponents(ws_fd.CodeName)
+        mod_fd = vbc_fd.CodeModule
+        print(f"  Module VBA : {vbc_fd.Name} -> '{ws_fd.Name}'")
+        if mod_fd.CountOfLines > 0:
+            mod_fd.DeleteLines(1, mod_fd.CountOfLines)
+        mod_fd.AddFromString(_VBA)
+        print(f"  Macro injectée dans '{ws_fd.Name}'")
 
-        # Effacer le module existant s'il y a du code
-        if module.CountOfLines > 0:
-            module.DeleteLines(1, module.CountOfLines)
+        # ── 2. Module standard ModVRTF : macros de calcul ─────────────────────
+        # Supprimer l'ancien module s'il existe
+        for comp in wb.VBProject.VBComponents:
+            if comp.Name == "ModVRTF":
+                wb.VBProject.VBComponents.Remove(comp)
+                break
+        # Créer un nouveau module standard (Type 1)
+        vbext_ct_StdModule = 1
+        mod_vrtf = wb.VBProject.VBComponents.Add(vbext_ct_StdModule)
+        mod_vrtf.Name = "ModVRTF"
+        mod_vrtf.CodeModule.AddFromString(_VBA_CALCUL)
+        print("  Module ModVRTF injecté")
 
-        # Injecter le code VBA
-        module.AddFromString(_VBA)
-        print(f"  Macro injectée dans '{ws.Name}'")
+        # ── 3. Feuille "Solver" : deux boutons de calcul ──────────────────────
+        ws_sol = wb.Worksheets("Solver")
 
-        # Sauvegarder en .xlsm (FileFormat 52 = xlOpenXMLWorkbookMacroEnabled)
+        # Supprimer les anciens boutons VRTF s'ils existent
+        btns = ws_sol.Buttons()
+        to_delete = []
+        for i in range(1, btns.Count + 1):
+            b = btns.Item(i)
+            if b.Name in ("BtnThermette", "BtnModray"):
+                to_delete.append(b)
+        for b in to_delete:
+            b.Delete()
+
+        def btn_rect(row1, col1, row2, col2):
+            c1 = ws_sol.Cells(row1, col1)
+            c2 = ws_sol.Cells(row2, col2)
+            left   = c1.Left
+            top    = c1.Top
+            width  = c2.Left + c2.Width - c1.Left
+            height = c2.Top  + c2.Height - c1.Top
+            return left, top, width, height
+
+        # Bouton "THERMETTE SEUL"  (D16:H17)
+        l, t, w, h = btn_rect(16, 4, 17, 8)
+        btn1 = ws_sol.Buttons().Add(l, t, w, h)
+        btn1.Text = "THERMETTE SEUL"
+        btn1.OnAction = "LancerThermette"
+        btn1.Name = "BtnThermette"
+        print("  Bouton 'THERMETTE SEUL' ajouté")
+
+        # Bouton "MODRAY + THERMETTE"  (J16:N17)
+        l, t, w, h = btn_rect(16, 10, 17, 14)
+        btn2 = ws_sol.Buttons().Add(l, t, w, h)
+        btn2.Text = "MODRAY + THERMETTE"
+        btn2.OnAction = "LancerModrayThermette"
+        btn2.Name = "BtnModray"
+        print("  Bouton 'MODRAY + THERMETTE' ajouté")
+
+        # ── 4. Sauvegarde ─────────────────────────────────────────────────────
         wb.SaveAs(str(out), FileFormat=52)
         wb.Close(SaveChanges=False)
         print(f"  Enregistré : {out.name}")
