@@ -1,0 +1,296 @@
+"""
+Calculs de combustion : stœchiométrie, fumées, température adiabatique, débits.
+"""
+
+import math
+
+from . import database as db
+from . import thermo
+from .math_utils import bisect
+
+AIR_DEFAULT = "Air_sec"
+T_REF = 273.0
+
+
+# ---------------------------------------------------------------------------
+# Helpers internes
+# ---------------------------------------------------------------------------
+
+def _compo(name_or_dict, kind: str = "fuel") -> dict[str, float]:
+    if isinstance(name_or_dict, dict):
+        return name_or_dict
+    if kind == "fuel":
+        return db.fuel_composition(name_or_dict)
+    return db.comburant_composition(name_or_dict)
+
+
+def _vo2_gas(formula: str) -> float:
+    """Volume O2 stœchiométrique [Nm³/Nm³] pour combustion complète."""
+    p = db.gas_props(formula)
+    return p["C"] + p["H"] / 4.0 - p["O"] / 2.0 + p["S"]
+
+
+def _vco2_gas(formula: str) -> float:
+    return db.gas_props(formula)["C"]
+
+
+def _vh2o_gas(formula: str) -> float:
+    return db.gas_props(formula)["H"] / 2.0
+
+
+def _vso2_gas(formula: str) -> float:
+    return db.gas_props(formula)["S"]
+
+
+def _vn2_gas(formula: str) -> float:
+    return db.gas_props(formula)["N"] / 2.0
+
+
+# ---------------------------------------------------------------------------
+# Stœchiométrie
+# ---------------------------------------------------------------------------
+
+def stoich_air_vol(fuel, air=AIR_DEFAULT) -> float:
+    """Volume d'air stœchiométrique Va [Nm³_air / Nm³_fuel]."""
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+    sum_vo2 = sum(pct / 100.0 * _vo2_gas(f) for f, pct in fuel_c.items() if pct)
+    o2_air = air_c.get("O2", 20.8) / 100.0
+    return sum_vo2 / o2_air if o2_air else 0.0
+
+
+def stoich_air_kg(fuel, air=AIR_DEFAULT) -> float:
+    """Va [kg_air / kg_fuel]."""
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+    va_vol = stoich_air_vol(fuel_c, air_c)
+    rho_f  = thermo.mixture_density(fuel_c, T_REF)
+    rho_a  = thermo.mixture_density(air_c,  T_REF)
+    return va_vol * rho_a / rho_f if rho_f else 0.0
+
+
+def flue_gas_volume_wet(fuel, air=AIR_DEFAULT, air_fuel_ratio: float = 1.0) -> float:
+    """Volume de fumées humides Vfh [Nm³_fumées / Nm³_fuel]."""
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+    va = stoich_air_vol(fuel_c, air_c)
+
+    vco2 = sum(pct / 100.0 * _vco2_gas(f) for f, pct in fuel_c.items() if pct)
+    vh2o = sum(pct / 100.0 * _vh2o_gas(f) for f, pct in fuel_c.items() if pct)
+    vso2 = sum(pct / 100.0 * _vso2_gas(f) for f, pct in fuel_c.items() if pct)
+    vn2  = (
+        sum(pct / 100.0 * _vn2_gas(f) for f, pct in fuel_c.items() if pct)
+        + air_fuel_ratio * va * (air_c.get("N2", 79.2) / 100.0)
+    )
+    vo2_exc = (air_fuel_ratio - 1.0) * va * (air_c.get("O2", 20.8) / 100.0)
+    return vco2 + vh2o + vso2 + vn2 + max(0.0, vo2_exc)
+
+
+# ---------------------------------------------------------------------------
+# Composition des fumées
+# ---------------------------------------------------------------------------
+
+def flue_gas_composition(fuel, air=AIR_DEFAULT, air_fuel_ratio: float = 1.0) -> dict[str, float]:
+    """Composition volumique [%] des fumées (combustion complète)."""
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+    va  = stoich_air_vol(fuel_c, air_c)
+    vfh = flue_gas_volume_wet(fuel_c, air_c, air_fuel_ratio)
+
+    vco2 = sum(pct / 100.0 * _vco2_gas(f) for f, pct in fuel_c.items() if pct)
+    vh2o = sum(pct / 100.0 * _vh2o_gas(f) for f, pct in fuel_c.items() if pct)
+    vso2 = sum(pct / 100.0 * _vso2_gas(f) for f, pct in fuel_c.items() if pct)
+    vn2  = (
+        sum(pct / 100.0 * _vn2_gas(f) for f, pct in fuel_c.items() if pct)
+        + air_fuel_ratio * va * (air_c.get("N2", 79.2) / 100.0)
+    )
+    vo2 = max(0.0, (air_fuel_ratio - 1.0) * va * (air_c.get("O2", 20.8) / 100.0))
+
+    if vfh == 0:
+        return {"CO2": 0, "H2O": 0, "O2": 0, "N2": 0, "SO2": 0, "CO": 0, "H2": 0}
+    return {
+        "CO2": 100.0 * vco2 / vfh,
+        "H2O": 100.0 * vh2o / vfh,
+        "O2":  100.0 * vo2  / vfh,
+        "N2":  100.0 * vn2  / vfh,
+        "SO2": 100.0 * vso2 / vfh,
+        "CO":  0.0,
+        "H2":  0.0,
+    }
+
+
+def waste_gas_composition(
+    fuel,
+    air=AIR_DEFAULT,
+    air_fuel_ratio: float = 1.0,
+    T_equil: float = 20.0,
+) -> dict[str, float]:
+    """
+    Composition des fumées [%] avec équilibre eau-gaz CO2+H2 ⇌ CO+H2O.
+    Pour air_fuel_ratio ≥ 1 : combustion complète + O2 en excès.
+    Pour air_fuel_ratio < 1  : résolution d'une équation du second degré.
+    """
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+    va = stoich_air_vol(fuel_c, air_c)
+
+    a    = sum(pct / 100.0 * _vco2_gas(f) for f, pct in fuel_c.items() if pct)
+    b    = sum(pct / 100.0 * _vh2o_gas(f) for f, pct in fuel_c.items() if pct)
+    vso2 = sum(pct / 100.0 * _vso2_gas(f) for f, pct in fuel_c.items() if pct)
+    vn2  = (
+        sum(pct / 100.0 * _vn2_gas(f) for f, pct in fuel_c.items() if pct)
+        + air_fuel_ratio * va * (air_c.get("N2", 79.2) / 100.0)
+    )
+
+    o2_st    = va * (air_c.get("O2", 20.8) / 100.0)
+    o2_avail = air_fuel_ratio * o2_st
+    o2_needed = sum(pct / 100.0 * _vo2_gas(f) for f, pct in fuel_c.items() if pct)
+
+    if air_fuel_ratio >= 1.0:
+        vo2_exc = o2_avail - o2_needed
+        total = a + b + vso2 + vn2 + vo2_exc
+        if total == 0:
+            return {"CO2": 0, "H2O": 0, "O2": 0, "N2": 0, "SO2": 0, "CO": 0, "H2": 0}
+        return {
+            "CO2": 100.0 * a       / total,
+            "H2O": 100.0 * b       / total,
+            "O2":  100.0 * vo2_exc / total,
+            "N2":  100.0 * vn2     / total,
+            "SO2": 100.0 * vso2    / total,
+            "CO":  0.0,
+            "H2":  0.0,
+        }
+
+    delta = o2_needed - o2_avail
+    K = math.exp(3.75 - 4075.0 / (T_equil + 273.0))
+
+    A_coef = K - 1.0
+    B_coef = -(K * a) - 2.0 * delta * (K - 1.0) - b
+    C_coef = K * 2.0 * a * delta
+
+    if abs(A_coef) < 1e-12:
+        x_co = -C_coef / B_coef if abs(B_coef) > 1e-12 else delta
+    else:
+        discriminant = max(0.0, B_coef ** 2 - 4.0 * A_coef * C_coef)
+        sqrt_d = math.sqrt(discriminant)
+        x1 = (-B_coef + sqrt_d) / (2.0 * A_coef)
+        x2 = (-B_coef - sqrt_d) / (2.0 * A_coef)
+        valid = [
+            x for x in (x1, x2)
+            if 0.0 <= x <= min(a, 2.0 * delta) and 0.0 <= (2.0 * delta - x) <= b
+        ]
+        x_co = valid[0] if valid else delta
+
+    x_co = max(0.0, min(x_co, min(a, 2.0 * delta)))
+    x_h2 = max(0.0, min(2.0 * delta - x_co, b))
+
+    vco2  = a - x_co
+    vh2o  = b - x_h2
+    total = vco2 + vh2o + vso2 + vn2 + x_co + x_h2
+    if total == 0:
+        return {"CO2": 0, "H2O": 0, "O2": 0, "N2": 0, "SO2": 0, "CO": 0, "H2": 0}
+    return {
+        "CO2": 100.0 * vco2 / total,
+        "H2O": 100.0 * vh2o / total,
+        "O2":  0.0,
+        "N2":  100.0 * vn2  / total,
+        "SO2": 100.0 * vso2 / total,
+        "CO":  100.0 * x_co / total,
+        "H2":  100.0 * x_h2 / total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Débits
+# ---------------------------------------------------------------------------
+
+def flow_fuel(power_W: float, fuel, air=AIR_DEFAULT, air_fuel_ratio: float = 1.0,
+              T_fuel: float = T_REF) -> dict[str, float]:
+    """
+    Débits à partir de la puissance thermique [W].
+    Retourne dict{ fuel_Nm3h, air_Nm3h, fuel_kgs, air_kgs, flue_kgs }.
+    """
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+
+    if isinstance(fuel, dict):
+        pci = sum(
+            pct / 100.0 * db.gas_props(f)["pci"] / 22.4136
+            for f, pct in fuel_c.items() if pct and db.gas_props(f)["pci"]
+        )
+    else:
+        pci = thermo.lhv_vol(fuel)
+
+    q_fuel_Nm3s = power_W / pci if pci else 0.0
+    va          = stoich_air_vol(fuel_c, air_c)
+    q_air_Nm3s  = q_fuel_Nm3s * air_fuel_ratio * va
+    q_flue_Nm3s = q_fuel_Nm3s * flue_gas_volume_wet(fuel_c, air_c, air_fuel_ratio)
+
+    rho_fuel = thermo.mixture_density(fuel_c, T_fuel)
+    rho_air  = thermo.mixture_density(air_c,  T_REF)
+    flue_c   = waste_gas_composition(fuel_c, air_c, air_fuel_ratio)
+    rho_flue = thermo.mixture_density(flue_c, T_REF) if any(flue_c.values()) else 1.3
+
+    return {
+        "fuel_Nm3h": q_fuel_Nm3s * 3600.0,
+        "air_Nm3h":  q_air_Nm3s  * 3600.0,
+        "fuel_kgs":  q_fuel_Nm3s * rho_fuel,
+        "air_kgs":   q_air_Nm3s  * rho_air,
+        "flue_kgs":  q_flue_Nm3s * rho_flue,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Températures
+# ---------------------------------------------------------------------------
+
+def adiabatic_temperature(
+    fuel, air=AIR_DEFAULT, air_fuel_ratio: float = 1.0,
+    T_fuel: float = T_REF, T_air: float = T_REF,
+) -> float:
+    """Température de flamme adiabatique [K]."""
+    fuel_c = _compo(fuel, "fuel")
+    air_c  = _compo(air,  "air")
+    va     = stoich_air_vol(fuel_c, air_c)
+    flue_c = waste_gas_composition(fuel_c, air_c, air_fuel_ratio)
+
+    pci = sum(
+        pct / 100.0 * db.gas_props(f)["pci"] / 22.4136
+        for f, pct in fuel_c.items() if pct and db.gas_props(f)["pci"]
+    )
+    h_fuel_in = thermo.mixture_enthalpy_vol(fuel_c, T_fuel)
+    h_air_in  = thermo.mixture_enthalpy_vol(air_c,  T_air) * air_fuel_ratio * va
+
+    rho_flue = thermo.mixture_density(flue_c, T_REF) if any(flue_c.values()) else 1.3
+    vfh      = flue_gas_volume_wet(fuel_c, air_c, air_fuel_ratio)
+    h_target = (pci + h_fuel_in + h_air_in) / vfh if vfh else 0.0
+
+    def f(T):
+        return thermo.mixture_enthalpy(flue_c, T) * rho_flue - h_target
+
+    return bisect(f, 300.0, 2500.0, tol=h_target * 1e-4 or 1.0)
+
+
+def equivalent_temperature(
+    compo_A: dict[str, float], flow_A: float,
+    compo_B: dict[str, float], flow_B: float,
+    T_A: float, T_B: float,
+) -> float:
+    """Température équivalente de deux débits mélangés [K]."""
+    h_A = thermo.mixture_enthalpy(compo_A, T_A) * flow_A
+    h_B = thermo.mixture_enthalpy(compo_B, T_B) * flow_B
+    total_flow = flow_A + flow_B
+    if total_flow == 0:
+        return (T_A + T_B) / 2.0
+
+    all_gases = set(compo_A) | set(compo_B)
+    compo_mix = {
+        g: (compo_A.get(g, 0.0) * flow_A + compo_B.get(g, 0.0) * flow_B) / total_flow
+        for g in all_gases
+    }
+    h_mix = (h_A + h_B) / total_flow
+
+    def f(T):
+        return thermo.mixture_enthalpy(compo_mix, T) - h_mix
+
+    return bisect(f, min(T_A, T_B) - 10, max(T_A, T_B) + 10, tol=abs(h_mix) * 1e-4 or 1.0)
