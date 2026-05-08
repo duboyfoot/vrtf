@@ -66,7 +66,7 @@ utilisable dans tout projet Python indépendamment de VRTF.
 ### Installation
 
 ```
-pip install git+https://github.com/duboyfoot/kappa-combustion.git
+pip install kappa-combustion
 ```
 
 ### Exemple d'utilisation
