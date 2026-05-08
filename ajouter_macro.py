@@ -31,36 +31,33 @@ Option Explicit
 
 Private Sub RunCalcul(useModray As Boolean)
     Dim xlsmPath As String
-    Dim outPath As String
     Dim scriptPath As String
+    Dim q As String
     Dim cmd As String
+    Dim fullCmd As String
     Dim wsh As Object
-    Dim ret As Long
 
     xlsmPath = ThisWorkbook.FullName
     scriptPath = ThisWorkbook.Path & "\\calculer.py"
-    outPath = Left(xlsmPath, InStrRev(xlsmPath, ".") - 1) & "_résultats.xlsm"
-
-    ThisWorkbook.Save
-
-    Dim q As String
     q = Chr(34)
-    cmd = "py " & q & scriptPath & q & " --excel " & q & xlsmPath & q & " --out " & q & outPath & q
+
+    cmd = "py " & q & scriptPath & q & " --excel " & q & xlsmPath & q
     If useModray Then cmd = cmd & " --modray"
 
-    Application.StatusBar = IIf(useModray, "Modray + Thermette en cours...", "Thermette en cours...")
+    ' Sauvegarder pour que les donnees soient a jour sur disque
+    ThisWorkbook.Save
 
+    ' Lancer Python en mode asynchrone (fenetre visible pour voir la progression)
+    ' Si succes : start reouvre le fichier dans Excel
+    ' Si erreur : la fenetre reste ouverte avec le message d erreur
     Set wsh = CreateObject("WScript.Shell")
-    ret = wsh.Run("cmd /c " & cmd, 1, True)
+    fullCmd = "cmd /c (" & cmd & ") && (start " & q & q & " " & q & xlsmPath & q & ")" & _
+              " || (echo. & echo === ERREUR calcul === & pause)"
+    wsh.Run fullCmd, 1, False
 
-    Application.StatusBar = False
-
-    If ret = 0 Then
-        If Dir(outPath) <> "" Then Workbooks.Open outPath
-        MsgBox "Calcul terminé avec succès.", vbInformation, "VRTF"
-    Else
-        MsgBox "Erreur lors du calcul (code " & ret & ").", vbCritical, "VRTF"
-    End If
+    ' Fermer ce classeur pour liberer le fichier avant l ecriture Python
+    Application.DisplayAlerts = False
+    ThisWorkbook.Close SaveChanges:=False
 End Sub
 
 Sub LancerThermette()
