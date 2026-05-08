@@ -1,6 +1,9 @@
 # Claude Code
 .claude/
 
+# Package Python
+*.egg-info/
+
 # Fichiers générés par le calcul
 calcul/
 *_résultats.xlsx
